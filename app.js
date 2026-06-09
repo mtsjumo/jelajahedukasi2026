@@ -550,7 +550,7 @@ function openForm(destId) {
   `;
   body.appendChild(fotoSection);
 
-  if (state.photos[destId]) renderFotoPreview(destId);
+  renderFotoPreview(destId);
 
   // ── TOMBOL PDF PER KUNJUNGAN ──
   const pdfKunjunganSection = document.createElement('div');
@@ -635,14 +635,20 @@ function handleFotoUpload(input, destId) {
   if (files.length > remaining) showToast(`⚠️ Hanya ${remaining} foto lagi yang bisa ditambahkan`);
 
   let loaded = 0;
+  let failed = 0;
   toAdd.forEach(file => {
-    // Compress before storing
-    compressImage(file, (compressed) => {
-      state.photos[destId].push({ src: compressed, name: file.name, w, h });
+    compressImage(file, (compressed, w, h) => {
+      if (!compressed) {
+        failed++;
+      } else {
+        state.photos[destId].push({ src: compressed, name: file.name, w, h });
+      }
       loaded++;
       if (loaded === toAdd.length) {
         renderFotoPreview(destId);
         saveState();
+        if (failed > 0) showToast(`⚠️ ${failed} foto gagal diproses`);
+        else if (loaded - failed > 0) showToast('✅ Foto berhasil ditambahkan!');
       }
     });
   });
@@ -663,9 +669,17 @@ function compressImage(file, callback) {
       }
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      callback(canvas.toDataURL('image/jpeg', 0.75));
+      callback(canvas.toDataURL('image/jpeg', 0.75), w, h);
+    };
+    img.onerror = () => {
+      showToast('⚠️ Gagal memuat foto. Coba file lain.');
+      callback(null, 0, 0);
     };
     img.src = e.target.result;
+  };
+  reader.onerror = () => {
+    showToast('⚠️ Gagal membaca file foto.');
+    callback(null, 0, 0);
   };
   reader.readAsDataURL(file);
 }
@@ -675,12 +689,15 @@ function renderFotoPreview(destId) {
   const countEl = document.getElementById(`fotoCount_${destId}`);
   if (!grid) return;
   const photos = state.photos[destId] || [];
-  grid.innerHTML = photos.map((p, i) => `
+  grid.innerHTML = photos.map((p, i) => {
+    const src = typeof p === 'string' ? p : p.src;
+    if (!src) return '';
+    return `
     <div class="foto-preview-item">
-      <img src="${p.src}" alt="Foto ${i+1}" loading="lazy" />
+      <img src="${src}" alt="Foto ${i+1}" loading="lazy" />
       <button class="foto-remove" onclick="hapusFoto('${destId}', ${i})" title="Hapus foto">×</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).filter(Boolean).join('');
   if (countEl) countEl.textContent = `${photos.length} / 6 foto`;
 }
 
