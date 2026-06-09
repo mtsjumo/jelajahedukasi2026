@@ -287,9 +287,25 @@ function saveState() {
   } catch(e) { console.log('Save state error:', e); }
 }
 
+// ==================== PDF TEXT HELPER ====================
+// jsPDF (Helvetica) tidak mendukung emoji — bersihkan agar tidak overlap/rusak
+function pdfSafeText(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{1F1E6}-\u{1F1FF}]/gu, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 // ==================== INIT ====================
 window.addEventListener('DOMContentLoaded', () => {
   loadState();
+
+  const btnPDF = document.getElementById('btnGeneratePDF');
+  const btnGDrive = document.getElementById('btnKirimGDrive');
+  if (btnPDF) btnPDF.addEventListener('click', () => generatePDF(null));
+  if (btnGDrive) btnGDrive.addEventListener('click', bukaGdriveModal);
+
   setTimeout(() => {
     document.getElementById('splash').classList.add('fade-out');
     setTimeout(() => {
@@ -391,17 +407,16 @@ function updateStats() {
   document.getElementById('progressBar').style.width = pct + '%';
 
   const btnPDF = document.getElementById('btnGeneratePDF');
-  const btnWA = document.getElementById('btnKirimWA');
+  const btnGDrive = document.getElementById('btnKirimGDrive');
   const pdfInfo = document.getElementById('pdfInfo');
 
-  btnPDF.disabled = filled === 0;
-  btnWA.disabled = filled === 0;
-  pdfInfo.textContent = filled > 0
-    ? `${filled} dari 10 destinasi sudah diisi — siap dibuat laporan!`
-    : 'Isi minimal 1 destinasi untuk membuat laporan';
-
-  btnPDF.onclick = () => generatePDF(null); // null = semua destinasi
-  btnWA.onclick = bukaGdriveModal;
+  if (btnPDF) btnPDF.disabled = filled === 0;
+  if (btnGDrive) btnGDrive.disabled = filled === 0;
+  if (pdfInfo) {
+    pdfInfo.textContent = filled > 0
+      ? `${filled} dari 10 destinasi sudah diisi — siap dibuat laporan!`
+      : 'Isi minimal 1 destinasi untuk membuat laporan';
+  }
 }
 
 // ==================== FORM ====================
@@ -668,7 +683,8 @@ async function generatePDF(destId) {
     const COL_W = (PW - MARGIN * 2 - GUTTER) / 2;  // lebar satu kolom ≈ 86.5mm
     const COL_L = MARGIN;                            // x kolom kiri
     const COL_R = MARGIN + COL_W + GUTTER;           // x kolom kanan
-    const BODY_TOP = 20;         // y mulai konten (setelah header halaman)
+    const HEADER_H = 22;         // tinggi header destinasi per halaman
+    const BODY_TOP = 24;         // y mulai konten (setelah header halaman)
     const BODY_BOT = PH - 16;    // y batas bawah (sebelum footer)
     const LINE_H_SM = 4.5;       // tinggi baris teks kecil
     const LINE_H_MD = 5.2;       // tinggi baris teks normal
@@ -818,17 +834,25 @@ async function generatePDF(destId) {
       return col;
     };
 
-    // ── KOTAK RUBRIK / LABEL ──
-    const drawSectionLabel = (text, col, emoji) => {
-      col = ensureSpace(10, col);
-      const x = colX(col);
-      doc.setFillColor(15, 69, 38);
-      doc.roundedRect(x, colY[col], COL_W, 7.5, 1.5, 1.5, 'F');
-      doc.setFontSize(8);
-      doc.setTextColor(240, 208, 96);
+    // ── KOTAK RUBRIK / LABEL (wrap teks, tanpa emoji) ──
+    const drawSectionLabel = (text, col, qi) => {
+      const labelText = pdfSafeText(text).toUpperCase();
+      const prefix = `PERTANYAAN ${qi + 1}`;
+      doc.setFontSize(7);
       doc.setFont('helvetica', 'bold');
-      doc.text(`${emoji}  ${text.toUpperCase()}`, x + 3, colY[col] + 5);
-      colY[col] += 9.5;
+      const lines = doc.splitTextToSize(labelText, COL_W - 8);
+      const boxH = 6 + lines.length * 4.2;
+      col = ensureSpace(boxH + 3, col);
+      const x = colX(col);
+      const y = colY[col];
+      doc.setFillColor(15, 69, 38);
+      doc.roundedRect(x, y, COL_W, boxH, 1.5, 1.5, 'F');
+      doc.setTextColor(240, 208, 96);
+      doc.text(prefix, x + 3, y + 4.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.8);
+      doc.text(lines, x + 3, y + 8.5);
+      colY[col] = y + boxH + 2.5;
       return col;
     };
 
@@ -899,12 +923,12 @@ async function generatePDF(destId) {
         doc.setFontSize(26);
         doc.setTextColor(255, 255, 255);
         doc.setFont('helvetica', 'bold');
-        const dLines = doc.splitTextToSize(singleDest.nama, PW - MARGIN * 2 - 10);
+        const dLines = doc.splitTextToSize(pdfSafeText(singleDest.nama), PW - MARGIN * 2 - 10);
         doc.text(dLines, MARGIN + 8, 88);
         doc.setFontSize(11);
         doc.setTextColor(150, 200, 150);
         doc.setFont('helvetica', 'normal');
-        doc.text(singleDest.lokasi, MARGIN + 8, 88 + dLines.length * 10 + 4);
+        doc.text(pdfSafeText(singleDest.lokasi), MARGIN + 8, 88 + dLines.length * 10 + 4);
       } else {
         // Cover full: grid mini nama destinasi
         doc.setFontSize(11);
@@ -919,7 +943,7 @@ async function generatePDF(destId) {
         DESTINASI.forEach((d, i) => {
           const done = !!(state.formData[d.id] && Object.keys(state.formData[d.id]).some(k => state.formData[d.id][k]));
           doc.setTextColor(done ? 200 : 90, done ? 230 : 110, done ? 200 : 90);
-          doc.text(`${String(i+1).padStart(2,'0')}  ${d.nama}`, MARGIN + 8, dy);
+          doc.text(`${String(i+1).padStart(2,'0')}  ${pdfSafeText(d.nama)}`, MARGIN + 8, dy);
           if (done) {
             doc.setFillColor(26, 107, 60);
             doc.roundedRect(PW - MARGIN - 14, dy - 4, 14, 5.5, 1, 1, 'F');
@@ -973,34 +997,41 @@ async function generatePDF(destId) {
 
       // ── HEADER DESTINASI (full-width, di atas dua kolom) ──
       doc.setFillColor(15, 69, 38);
-      doc.rect(0, 0, PW, BODY_TOP - 1, 'F');
+      doc.rect(0, 0, PW, HEADER_H, 'F');
 
-      // Accent strip warna destinasi
       doc.setFillColor(201, 162, 39);
-      doc.rect(0, BODY_TOP - 2, PW, 2, 'F');
+      doc.rect(0, HEADER_H, PW, 2, 'F');
 
-      // Nomor destinasi kecil
       const destIdx = DESTINASI.findIndex(x => x.id === d.id) + 1;
-      doc.setFontSize(8);
+      let hy = 5;
+
+      doc.setFontSize(7.5);
       doc.setTextColor(150, 200, 150);
       doc.setFont('helvetica', 'normal');
-      doc.text(`DESTINASI ${destIdx}`, MARGIN, 6);
+      doc.text(`DESTINASI ${destIdx}`, MARGIN, hy);
+      hy += 4.5;
 
-      // Nama destinasi
-      doc.setFontSize(14);
+      doc.setFontSize(12);
       doc.setTextColor(240, 208, 96);
       doc.setFont('helvetica', 'bold');
-      doc.text(d.nama.toUpperCase(), MARGIN + 26, 6);
+      const nameLines = doc.splitTextToSize(pdfSafeText(d.nama).toUpperCase(), PW - MARGIN * 2 - 16);
+      nameLines.forEach(line => {
+        doc.text(line, MARGIN, hy);
+        hy += 5;
+      });
 
-      // Lokasi
-      doc.setFontSize(8.5);
+      doc.setFontSize(8);
       doc.setTextColor(180, 220, 180);
       doc.setFont('helvetica', 'normal');
-      doc.text(`📍 ${d.lokasi}`, MARGIN + 26, 12.5);
+      doc.text(pdfSafeText(d.lokasi), MARGIN, Math.min(hy + 1, HEADER_H - 2));
 
-      // Emoji besar di kanan header
-      doc.setFontSize(20);
-      doc.text(d.emoji, PW - MARGIN - 10, 13);
+      // Badge nomor (ganti emoji yang tidak didukung font PDF)
+      doc.setFillColor(201, 162, 39);
+      doc.circle(PW - MARGIN - 7, 9, 5.5, 'F');
+      doc.setFontSize(9);
+      doc.setTextColor(15, 69, 38);
+      doc.setFont('helvetica', 'bold');
+      doc.text(String(destIdx), PW - MARGIN - 7, 10.2, { align: 'center' });
 
       colY = [BODY_TOP, BODY_TOP];
 
@@ -1009,8 +1040,9 @@ async function generatePDF(destId) {
       doc.setFontSize(9);
       doc.setTextColor(70, 100, 70);
       doc.setFont('helvetica', 'italic');
-      const descLines = doc.splitTextToSize(d.deskripsi, COL_W - 2);
+      const descLines = doc.splitTextToSize(pdfSafeText(d.deskripsi), COL_W - 2);
       descLines.forEach(l => {
+        activeCol = ensureSpace(4.5, activeCol);
         doc.text(l, colX(activeCol) + 1, colY[activeCol]);
         colY[activeCol] += 4.5;
       });
@@ -1019,7 +1051,7 @@ async function generatePDF(destId) {
 
       // Foto pertama langsung di kolom kanan (buka halaman dengan visual)
       if (photos.length > 0) {
-        insertPhoto(photos[0].src, 1, `Foto kunjungan ${d.nama}`, 'full');
+        insertPhoto(photos[0].src, 1, `Foto kunjungan ${pdfSafeText(d.nama)}`, 'full');
       }
 
       // ── PERTANYAAN & JAWABAN – Interleave dengan foto ──
@@ -1027,29 +1059,21 @@ async function generatePDF(destId) {
         const answer = data[q.id];
         if (!answer) return;
 
-        // Label rubrik
-        activeCol = drawSectionLabel(q.label, activeCol, q.ikon);
-        addSpace(activeCol, 1);
+        activeCol = shortCol();
+        activeCol = drawSectionLabel(q.label, activeCol, qi);
 
-        // Teks jawaban
-        doc.setFontSize(10);
-        doc.setTextColor(25, 40, 25);
-        doc.setFont('helvetica', 'normal');
-        const ansLines = doc.splitTextToSize(answer, COL_W - 3);
+        const ansLines = doc.splitTextToSize(pdfSafeText(answer), COL_W - 3);
         const lineH = LINE_H_MD;
-
-        // Sisipkan foto di antara paragraf jawaban
-        // Hitung kapan kira-kira setengah teks selesai → sisipkan foto di sana
         const midPoint = Math.floor(ansLines.length / 2);
-        const photoIdx = qi + 1; // foto ke-1 sudah dipakai di atas, mulai dari ke-2
+        const photoIdx = qi + 1;
 
         ansLines.forEach((line, li) => {
-          // Sisipkan foto di tengah-tengah jawaban pertanyaan 1 (kolom berlawanan)
           if (li === midPoint && photoIdx < photos.length && qi === 0) {
             const otherCol = 1 - activeCol;
-            insertPhoto(photos[photoIdx].src, otherCol, null, 'full');
+            if (colY[otherCol] + COL_W * 0.72 < BODY_BOT - 10) {
+              insertPhoto(photos[photoIdx].src, otherCol, null, 'full');
+            }
           }
-          // Sisipkan foto sebelum jawaban pertanyaan 2 (kolom berlawanan)
           if (li === 0 && photoIdx < photos.length && qi === 1) {
             const otherCol = 1 - activeCol;
             if (colY[otherCol] + COL_W * 0.6 < BODY_BOT - 20) {
@@ -1065,13 +1089,14 @@ async function generatePDF(destId) {
           colY[activeCol] += lineH;
         });
 
-        colY[activeCol] += 3; // spasi antar jawaban
+        colY[activeCol] += 4;
+        activeCol = shortCol();
 
         // Pull-quote dari kalimat pertama jawaban (untuk pertanyaan 1)
         if (qi === 0 && answer.length > 60) {
           const otherCol = 1 - activeCol;
           if (colY[otherCol] + 25 < BODY_BOT) {
-            drawPullQuote(answer.substring(0, 160), otherCol);
+            drawPullQuote(pdfSafeText(answer).substring(0, 160), otherCol);
           }
         }
 
@@ -1081,7 +1106,7 @@ async function generatePDF(destId) {
           const maxY = Math.max(colY[0], colY[1]) + 3;
           if (maxY + (PW - MARGIN*2) * 0.38 < BODY_BOT) {
             colY[0] = maxY; colY[1] = maxY;
-            insertPhoto(photos[2].src, 0, `Dokumentasi ${d.nama} — JES 2025`, 'wide');
+            insertPhoto(photos[2].src, 0, `Dokumentasi ${pdfSafeText(d.nama)} — JES 2025`, 'wide');
           }
         }
       });
@@ -1134,7 +1159,7 @@ async function generatePDF(destId) {
     btnEl.disabled = false;
     btnEl.innerHTML = isSingle
       ? `<span>📄 Unduh PDF – ${dest ? dest.nama : ''}</span>`
-      : '<span>📄 Buat & Unduh PDF Majalah</span>';
+      : '<span>📄 Unduh PDF Semua Kunjungan</span>';
   }
 }
 
