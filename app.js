@@ -297,6 +297,35 @@ function pdfSafeText(str) {
     .trim();
 }
 
+// ==================== PDF FOTO HELPER ====================
+function resolveImageSize(photo) {
+  const src = typeof photo === 'string' ? photo : photo.src;
+  if (photo?.w && photo?.h) return Promise.resolve({ w: photo.w, h: photo.h });
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = () => resolve({ w: 4, h: 3 });
+    img.src = src;
+  });
+}
+
+function fitImageInBox(natW, natH, maxW, maxH) {
+  const scale = Math.min(maxW / natW, maxH / natH);
+  return { w: natW * scale, h: natH * scale };
+}
+
+function getPhotoLimits(size, colW, fullW) {
+  if (size === 'wide') return { maxW: fullW, maxH: fullW * 0.72 };
+  if (size === 'half') return { maxW: colW * 0.62, maxH: colW * 1.35 };
+  return { maxW: colW, maxH: colW * 1.5 };
+}
+
+function pdfImageFormat(src) {
+  if (src.startsWith('data:image/png')) return 'PNG';
+  if (src.startsWith('data:image/webp')) return 'WEBP';
+  return 'JPEG';
+}
+
 // ==================== INIT ====================
 window.addEventListener('DOMContentLoaded', () => {
   loadState();
@@ -601,7 +630,7 @@ function handleFotoUpload(input, destId) {
   toAdd.forEach(file => {
     // Compress before storing
     compressImage(file, (compressed) => {
-      state.photos[destId].push({ src: compressed, name: file.name });
+      state.photos[destId].push({ src: compressed, name: file.name, w, h });
       loaded++;
       if (loaded === toAdd.length) {
         renderFotoPreview(destId);
@@ -765,45 +794,33 @@ async function generatePDF(destId) {
       return c;
     };
 
-    // ── SISIPKAN FOTO ke kolom ──
-    // Ukuran foto bervariasi supaya tidak monoton
-    const insertPhoto = (src, col, caption, size) => {
-      // size: 'full' (lebar kolom penuh), 'half' (setengah kolom), 'wide' (2 kolom)
-      let imgW, imgH, x;
-      const ratio = 0.68; // rasio h/w foto
+    // ── SISIPKAN FOTO ke kolom (rasio asli dipertahankan) ──
+    const insertPhoto = async (photo, col, caption, size) => {
+      const src = typeof photo === 'string' ? photo : photo.src;
+      const limits = getPhotoLimits(size, COL_W, FULL_W);
+      const { w: natW, h: natH } = await resolveImageSize(photo);
+      let { w: imgW, h: imgH } = fitImageInBox(natW, natH, limits.maxW, limits.maxH);
 
       if (size === 'wide') {
-        // Foto melintang 2 kolom — hanya jika kedua kolom di y hampir sama
-        imgW = PW - MARGIN * 2;
-        imgH = imgW * 0.45;
-        x = MARGIN;
-        // Samakan dulu kedua kolom
         const maxY = Math.max(colY[0], colY[1]);
-        colY[0] = maxY; colY[1] = maxY;
+        colY[0] = maxY;
+        colY[1] = maxY;
         col = 0;
-      } else if (size === 'half') {
-        imgW = COL_W * 0.62;
-        imgH = imgW * ratio;
-        x = colX(col);
-      } else { // full
-        imgW = COL_W;
-        imgH = imgW * ratio;
-        x = colX(col);
       }
 
       const needed = imgH + (caption ? 5 : 2) + 3;
       col = ensureSpace(needed, col);
-      x = colX(col);
-      if (size === 'wide') x = MARGIN;
 
+      const x = size === 'wide'
+        ? MARGIN + (limits.maxW - imgW) / 2
+        : colX(col) + (limits.maxW - imgW) / 2;
       const y = colY[col];
 
-      // Bayangan lembut foto (kotak abu-abu tipis di bawah)
       doc.setFillColor(200, 215, 200);
       doc.rect(x + 0.8, y + 0.8, imgW, imgH, 'F');
 
       try {
-        doc.addImage(src, 'JPEG', x, y, imgW, imgH, undefined, 'MEDIUM');
+        doc.addImage(src, pdfImageFormat(src), x, y, imgW, imgH, undefined, 'MEDIUM');
       } catch(e) {
         doc.setFillColor(220, 235, 220);
         doc.rect(x, y, imgW, imgH, 'F');
@@ -811,7 +828,6 @@ async function generatePDF(destId) {
         doc.text('[ foto ]', x + imgW/2, y + imgH/2, { align: 'center' });
       }
 
-      // Border tipis foto
       doc.setDrawColor(180, 210, 180);
       doc.setLineWidth(0.3);
       doc.rect(x, y, imgW, imgH);
@@ -858,16 +874,18 @@ async function generatePDF(destId) {
       return col;
     };
 
-    // Foto di kolom berlawanan — hanya jika kolom itu belum dipakai teks jawaban
-    const insertParallelPhoto = (src, textCol, size) => {
+    const estimatePhotoHeight = async (photo, size) => {
+      const limits = getPhotoLimits(size, COL_W, FULL_W);
+      const { w: natW, h: natH } = await resolveImageSize(photo);
+      return fitImageInBox(natW, natH, limits.maxW, limits.maxH).h;
+    };
+
+    const insertParallelPhoto = async (photo, textCol, size) => {
       const other = 1 - textCol;
-      const ratio = 0.68;
-      const imgH = size === 'half' ? COL_W * 0.62 * ratio : COL_W * ratio;
-      const needed = imgH + 5;
-      if (colY[other] + needed > BODY_BOT) return;
-      // Foto paralel: letakkan di kolom lain pada ketinggian yang sedang aktif
+      const imgH = await estimatePhotoHeight(photo, size);
+      if (colY[other] + imgH + 5 > BODY_BOT) return;
       if (colY[other] < colY[textCol]) colY[other] = colY[textCol];
-      insertPhoto(src, other, null, size);
+      await insertPhoto(photo, other, null, size);
     };
 
     const drawDestHeader = (d) => {
@@ -1029,43 +1047,43 @@ async function generatePDF(destId) {
 
       if (photos.length > 0) {
         colY[1] = BODY_TOP;
-        insertPhoto(photos[0].src, 1, `Foto kunjungan ${pdfSafeText(d.nama)}`, 'full');
+        await insertPhoto(photos[0], 1, `Foto kunjungan ${pdfSafeText(d.nama)}`, 'full');
       }
 
       // Pertanyaan & jawaban — alur 2 kolom, foto paralel (bukan di tengah paragraf)
-      d.pertanyaan.forEach((q, qi) => {
+      for (let qi = 0; qi < d.pertanyaan.length; qi++) {
+        const q = d.pertanyaan[qi];
         const answer = data[q.id];
-        if (!answer) return;
+        if (!answer) continue;
 
         let col = shortCol();
         col = drawSectionLabel(q.label, col, qi);
 
         const photoIdx = qi + 1;
         if (photoIdx < photos.length && qi < 2) {
-          insertParallelPhoto(photos[photoIdx].src, col, qi === 0 ? 'full' : 'half');
+          await insertParallelPhoto(photos[photoIdx], col, qi === 0 ? 'full' : 'half');
         }
 
         col = writeText(pdfSafeText(answer), col, 10, [25, 40, 25], 'normal');
         colY[col] += 4;
-      });
+      }
 
       // Foto melintang 2 kolom — samakan dulu ketinggian kolom
       if (photos.length >= 3) {
         syncCols();
-        const wideH = FULL_W * 0.45 + 8;
-        if (syncCols() + wideH <= BODY_BOT) {
-          insertPhoto(photos[2].src, 0, `Dokumentasi ${pdfSafeText(d.nama)} — JES 2026`, 'wide');
+        const wideH = await estimatePhotoHeight(photos[2], 'wide');
+        if (syncCols() + wideH + 8 <= BODY_BOT) {
+          await insertPhoto(photos[2], 0, `Dokumentasi ${pdfSafeText(d.nama)} — JES 2026`, 'wide');
         }
       }
 
       // Sisa foto — grid 2 kolom bergantian
-      if (photos.length > 3) {
-        photos.slice(3).forEach((p, ei) => {
-          const col = shortCol();
-          if (colY[col] + COL_W * 0.55 <= BODY_BOT) {
-            insertPhoto(p.src, col, null, 'half');
-          }
-        });
+      for (const p of photos.slice(3)) {
+        const col = shortCol();
+        const halfH = await estimatePhotoHeight(p, 'half');
+        if (colY[col] + halfH <= BODY_BOT) {
+          await insertPhoto(p, col, null, 'half');
+        }
       }
 
       drawPageFooter();
