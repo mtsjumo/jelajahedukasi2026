@@ -314,10 +314,18 @@ function fitImageInBox(natW, natH, maxW, maxH) {
   return { w: natW * scale, h: natH * scale };
 }
 
+// Skala tampilan foto di PDF (~25% lebih kecil, proporsi tetap)
+const PHOTO_DISPLAY_SCALE = 0.75;
+
 function getPhotoLimits(size, colW, fullW) {
-  if (size === 'wide') return { maxW: fullW, maxH: fullW * 0.72 };
-  if (size === 'half') return { maxW: colW * 0.62, maxH: colW * 1.35 };
-  return { maxW: colW, maxH: colW * 1.5 };
+  let limits;
+  if (size === 'wide') limits = { maxW: fullW, maxH: fullW * 0.72 };
+  else if (size === 'half') limits = { maxW: colW * 0.62, maxH: colW * 1.35 };
+  else limits = { maxW: colW, maxH: colW * 1.5 };
+  return {
+    maxW: limits.maxW * PHOTO_DISPLAY_SCALE,
+    maxH: limits.maxH * PHOTO_DISPLAY_SCALE,
+  };
 }
 
 function pdfImageFormat(src) {

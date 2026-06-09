@@ -3,7 +3,7 @@
    v2.1 – Auto Update + Cache Strategy
    ============================================ */
 
-const APP_VERSION = 'jes-v2.4';
+const APP_VERSION = 'jes-v2.5';
 const CACHE_STATIC = `${APP_VERSION}-static`;
 const CACHE_DYNAMIC = `${APP_VERSION}-dynamic`;
 
