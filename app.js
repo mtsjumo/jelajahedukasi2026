@@ -1,6 +1,6 @@
 /* ============================================
    JES APP – Main JavaScript
-   MTs Ma'arif Jumo | 2025
+   MTs Ma'arif Jumo | 2026
    v2.0 – PWA Install + Kamera + PDF per Kunjungan
    ============================================ */
 
@@ -731,7 +731,7 @@ async function generatePDF(destId) {
       doc.setTextColor(160, 210, 160);
       doc.setFont('helvetica', 'normal');
       doc.text(`${pdfSafeText(state.identity.nama)} · Kelas ${state.identity.kelas} · Absen ${state.identity.absen}`, MARGIN, PH - 3.5);
-      doc.text(`JES 2025 · MTs Ma'arif Jumo · Hal. ${pg}`, PW - MARGIN, PH - 3.5, { align: 'right' });
+      doc.text(`JES 2026 · MTs Ma'arif Jumo · Hal. ${pg}`, PW - MARGIN, PH - 3.5, { align: 'right' });
     };
 
     // Pilih kolom dengan posisi lebih rendah (lebih pendek = prioritas)
@@ -935,7 +935,7 @@ async function generatePDF(destId) {
 
       doc.setFontSize(10);
       doc.setTextColor(130, 170, 130);
-      doc.text("MTs Ma'arif Jumo · 2025", MARGIN + 8, 65);
+      doc.text("MTs Ma'arif Jumo · 2026", MARGIN + 8, 65);
 
       // Garis pemisah emas
       doc.setDrawColor(201, 162, 39);
@@ -1054,7 +1054,7 @@ async function generatePDF(destId) {
         syncCols();
         const wideH = FULL_W * 0.45 + 8;
         if (syncCols() + wideH <= BODY_BOT) {
-          insertPhoto(photos[2].src, 0, `Dokumentasi ${pdfSafeText(d.nama)} — JES 2025`, 'wide');
+          insertPhoto(photos[2].src, 0, `Dokumentasi ${pdfSafeText(d.nama)} — JES 2026`, 'wide');
         }
       }
 
@@ -1079,7 +1079,7 @@ async function generatePDF(destId) {
       drawPageFooter();
       await renderDestMagazine(dest);
 
-      const filename = `JES2025_${dest.id}_${state.identity.nama.replace(/\s+/g,'_')}.pdf`;
+      const filename = `JES2026_${dest.id}_${state.identity.nama.replace(/\s+/g,'_')}.pdf`;
       doc.save(filename);
       showToast(`📄 PDF ${dest.nama} diunduh!`);
 
@@ -1091,7 +1091,7 @@ async function generatePDF(destId) {
         await renderDestMagazine(d);
       }
 
-      const filename = `JES2025_MAJALAH_${state.identity.nama.replace(/\s+/g,'_')}_${state.identity.kelas.replace(/\s+/g,'')}.pdf`;
+      const filename = `JES2026_MAJALAH_${state.identity.nama.replace(/\s+/g,'_')}_${state.identity.kelas.replace(/\s+/g,'')}.pdf`;
       doc.save(filename);
       showToast('🎉 PDF Majalah berhasil diunduh!');
     }
