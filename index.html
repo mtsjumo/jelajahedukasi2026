@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f2027" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="Jelajah Edukasi & Spiritual - MTs Ma'arif Jumo" />
+  <title>JES – MTs Ma'arif Jumo</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     PWA INSTALL BANNER
+════════════════════════════════════════ -->
+<div id="installBanner" class="install-banner hidden">
+  <div class="install-banner-icon">📲</div>
+  <div class="install-banner-text">
+    <strong>Pasang Aplikasi JES</strong>
+    <span>Akses lebih cepat, bisa offline!</span>
+  </div>
+  <button class="install-banner-btn" onclick="triggerInstall()">Pasang</button>
+  <button class="install-banner-close" onclick="hideInstallBanner()">✕</button>
+</div>
+
+<!-- ═══════════════════════════════════════
+     UPDATE BANNER
+════════════════════════════════════════ -->
+<div id="updateBanner" class="update-banner hidden">
+  <span>🔄 Versi baru tersedia!</span>
+  <button onclick="applyUpdate()">Perbarui Sekarang</button>
+</div>
+
+<!-- ═══════════════════════════════════════
+     SPLASH SCREEN
+════════════════════════════════════════ -->
+<div id="splash" class="splash">
+  <div class="splash-bg"></div>
+  <div class="splash-content">
+    <div class="splash-logo">
+      <div class="logo-ring"></div>
+      <div class="logo-icon">🕌</div>
+    </div>
+    <h1 class="splash-title">JES</h1>
+    <p class="splash-sub">Jelajah Edukasi & Spiritual</p>
+    <p class="splash-school">MTs Ma'arif Jumo</p>
+    <div class="splash-loader"><span></span><span></span><span></span></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     IDENTITY MODAL
+════════════════════════════════════════ -->
+<div id="identityModal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-icon">✍️</div>
+      <h2>Siapa Kamu?</h2>
+      <p>Isi identitasmu sebelum memulai petualangan</p>
+    </div>
+    <div class="modal-body">
+      <div class="field-group">
+        <label>Nama Lengkap</label>
+        <input type="text" id="inputNama" placeholder="Nama lengkapmu..." maxlength="60" autocomplete="name" />
+      </div>
+      <div class="field-group">
+        <label>Kelas</label>
+        <div class="kelas-grid">
+          <button class="kelas-btn" data-kelas="VII A">VII A</button>
+          <button class="kelas-btn" data-kelas="VII B">VII B</button>
+          <button class="kelas-btn" data-kelas="VII C">VII C</button>
+          <button class="kelas-btn" data-kelas="VIII A">VIII A</button>
+          <button class="kelas-btn" data-kelas="VIII B">VIII B</button>
+          <button class="kelas-btn" data-kelas="VIII C">VIII C</button>
+          <button class="kelas-btn" data-kelas="IX A">IX A</button>
+          <button class="kelas-btn" data-kelas="IX B">IX B</button>
+          <button class="kelas-btn" data-kelas="IX C">IX C</button>
+        </div>
+      </div>
+      <div class="field-group">
+        <label>No. Absen</label>
+        <input type="number" id="inputAbsen" placeholder="Nomor absenmu..." min="1" max="40" />
+      </div>
+    </div>
+    <div style="padding:0 24px 24px;">
+      <button class="btn-primary" id="btnSimpanIdentitas">Mulai Petualangan 🚀</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     MAIN APP
+════════════════════════════════════════ -->
+<div id="app" class="app hidden">
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="header-logo">🕌</div>
+      <div>
+        <div class="header-title">JES 2025</div>
+        <div class="header-sub">MTs Ma'arif Jumo</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="student-badge">
+        <span id="badgeNama">Siswa</span>
+        <span id="badgeKelas" class="badge-kelas"></span>
+      </div>
+      <button class="btn-edit-id" onclick="editIdentitas()" title="Edit identitas">✏️</button>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-pattern"></div>
+    <div class="hero-content">
+      <div class="hero-badge">✨ Program Unggulan 2025</div>
+      <h1 class="hero-title">Jelajah<br/><em>Edukasi & Spiritual</em></h1>
+      <p class="hero-desc">10 destinasi bersejarah, ribuan kenangan, satu laporan komprehensif yang kamu buat sendiri.</p>
+      <div class="hero-stats">
+        <div class="stat"><span class="stat-num">10</span><span class="stat-label">Destinasi</span></div>
+        <div class="stat-div"></div>
+        <div class="stat"><span class="stat-num" id="statTerisi">0</span><span class="stat-label">Terisi</span></div>
+        <div class="stat-div"></div>
+        <div class="stat"><span class="stat-num" id="statPersen">0%</span><span class="stat-label">Selesai</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROGRESS BAR -->
+  <div class="progress-wrap">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <!-- DESTINATION CARDS -->
+  <section class="destinations">
+    <div class="section-label">📍 Pilih Destinasi</div>
+    <div class="cards-grid" id="cardsGrid"></div>
+  </section>
+
+  <!-- LAPORAN & KIRIM SECTION -->
+  <section class="pdf-section">
+    <div class="pdf-card">
+      <div class="pdf-icon">📋</div>
+      <h3>Laporan & Pengiriman</h3>
+      <p>Unduh laporan PDF lengkap semua kunjungan, lalu kirim ringkasan ke Google Drive madrasah.</p>
+      <div class="pdf-info" id="pdfInfo">Isi minimal 1 destinasi untuk membuat laporan</div>
+
+      <button class="btn-primary btn-pdf" id="btnGeneratePDF" disabled>
+        <span>📄 Unduh PDF Semua Kunjungan</span>
+      </button>
+
+      <button class="btn-gdrive" id="btnKirimGDrive" disabled>
+        <span>☁️ Kirim ke Google Drive Madrasah</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="app-footer">
+    <p>🕌 MTs Ma'arif Jumo • JES 2025</p>
+    <p class="footer-sub">Dibuat dengan ❤️ untuk siswa-siswi terbaik</p>
+  </footer>
+
+</div>
+
+<!-- ═══════════════════════════════════════
+     FORM MODAL (full-screen)
+════════════════════════════════════════ -->
+<div id="formModal" class="modal-overlay hidden">
+  <div class="form-container">
+
+    <div class="form-header" id="formHeader">
+      <button class="btn-back" onclick="closeForm()">←</button>
+      <div class="form-header-info">
+        <div class="form-header-icon" id="formIcon"></div>
+        <div>
+          <div class="form-header-title" id="formTitle"></div>
+          <div class="form-header-sub" id="formSub"></div>
+        </div>
+      </div>
+      <div class="form-saved-badge hidden" id="formSavedBadge">✓ Tersimpan</div>
+    </div>
+
+    <div class="form-body" id="formBody"></div>
+
+    <div class="form-footer">
+      <button class="btn-secondary" onclick="closeForm()">Tutup</button>
+      <button class="btn-primary" onclick="simpanForm()">💾 Simpan Laporan</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     GOOGLE DRIVE MODAL
+════════════════════════════════════════ -->
+<div id="gdriveModal" class="modal-overlay hidden">
+  <div class="modal-card gdrive-modal">
+    <div class="gdrive-header">
+      <div style="font-size:40px;margin-bottom:10px;">☁️</div>
+      <h2>Kirim ke Google Drive</h2>
+      <p>Laporan kamu akan dikirim ke folder Google Drive madrasah</p>
+    </div>
+    <div class="gdrive-body">
+      <div class="gdrive-summary" id="gdriveSummary"></div>
+      <div class="gdrive-steps">
+        <div class="gdrive-step">
+          <div class="step-num">1</div>
+          <div class="step-text">Klik <strong>"Unduh PDF"</strong> — simpan file di HP kamu</div>
+        </div>
+        <div class="gdrive-step">
+          <div class="step-num">2</div>
+          <div class="step-text">Klik <strong>"Buka Form Pengiriman"</strong> — halaman Google Form akan terbuka</div>
+        </div>
+        <div class="gdrive-step">
+          <div class="step-num">3</div>
+          <div class="step-text">Isi form dan upload file PDF yang baru kamu unduh</div>
+        </div>
+      </div>
+    </div>
+    <div class="gdrive-actions">
+      <button class="btn-primary btn-pdf" onclick="generatePDF(null); closeGdriveModal()">
+        📄 Unduh PDF Dulu
+      </button>
+      <button class="btn-gdrive-open" id="btnBukaForm">
+        ☁️ Buka Form Pengiriman →
+      </button>
+      <button class="btn-secondary" onclick="closeGdriveModal()" style="margin-top:6px;">
+        Tutup
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
