@@ -1,4 +1,4 @@
-# 🕌 JES 2025 – Jelajah Edukasi & Spiritual
+# 🕌 JES 2026 – Jelajah Edukasi & Spiritual
 ### Aplikasi Laporan Kunjungan | MTs Ma'arif Jumo
 
 ---
@@ -26,7 +26,7 @@ Aplikasi PWA (Progressive Web App) untuk mendukung kegiatan Jelajah Edukasi & Sp
 ### Langkah 1 – Buat Repository GitHub
 1. Login ke [github.com](https://github.com)
 2. Klik tombol **"New repository"**
-3. Nama repository: `jes-2025` (atau sesuai keinginan)
+3. Nama repository: `jes-2026` (atau sesuai keinginan)
 4. Centang **"Public"**
 5. Klik **"Create repository"**
 
@@ -48,7 +48,7 @@ Aplikasi PWA (Progressive Web App) untuk mendukung kegiatan Jelajah Edukasi & Sp
 4. Branch: pilih **"main"** → Folder: **"/ (root)"**
 5. Klik **"Save"**
 6. Tunggu beberapa menit, lalu URL akan muncul:
-   `https://[username].github.io/jes-2025/`
+   `https://[username].github.io/jes-2026/`
 
 ### Langkah 4 – Bagikan ke Siswa
 Siswa cukup membuka link tersebut dari HP Android, lalu:
@@ -108,4 +108,4 @@ Jika ada pertanyaan atau kendala teknis, hubungi pengembang.
 
 ---
 
-*MTs Ma'arif Jumo • JES 2025 • Jelajah Edukasi & Spiritual*
+*MTs Ma'arif Jumo • JES 2026 • Jelajah Edukasi & Spiritual*
