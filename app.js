@@ -315,7 +315,7 @@ function fitImageInBox(natW, natH, maxW, maxH) {
 }
 
 // Skala tampilan foto di PDF (25% dari ukuran asli, proporsi TETAP)
-const PHOTO_DISPLAY_SCALE = 0.25;
+const PHOTO_DISPLAY_SCALE = 0.35;
 
 function getPhotoLimits(size, colW, fullW) {
   let limits;
