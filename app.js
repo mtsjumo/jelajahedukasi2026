@@ -266,6 +266,12 @@ function loadState() {
       const savedPhotos = localStorage.getItem('jes_photos');
       if (savedPhotos) {
         state.photos = JSON.parse(savedPhotos);
+        Object.keys(state.photos).forEach(destId => {
+          state.photos[destId] = (state.photos[destId] || []).filter(p => {
+            const src = typeof p === 'string' ? p : p?.src;
+            return typeof src === 'string' && src.startsWith('data:image');
+          });
+        });
       }
     }
   } catch(e) { console.log('Load state error:', e); }
@@ -527,30 +533,27 @@ function openForm(destId) {
     <div class="form-section-title">📸 Foto Dokumentasi</div>
     <div class="form-section-desc">Tambahkan foto kunjunganmu. Foto akan tampil di laporan PDF. (Maks. 6 foto)</div>
 
-    <!-- Hidden file inputs -->
-    <input type="file" id="fotoGaleri_${destId}" accept="image/*" multiple style="display:none"
-      onchange="handleFotoUpload(this, '${destId}')" />
-    <input type="file" id="fotoKamera_${destId}" accept="image/*" capture="environment" style="display:none"
-      onchange="handleFotoUpload(this, '${destId}')" />
+    <input type="file" id="fotoGaleri_${destId}" class="foto-input-hidden"
+      accept="image/jpeg,image/png,image/webp,image/gif,image/*" multiple />
+    <input type="file" id="fotoKamera_${destId}" class="foto-input-hidden"
+      accept="image/jpeg,image/png,image/webp,image/gif,image/*" capture="environment" />
 
-    <!-- Buttons -->
     <div class="foto-btn-row">
-      <button class="btn-foto-src btn-galeri" onclick="document.getElementById('fotoGaleri_${destId}').click()">
+      <label class="btn-foto-src btn-galeri" for="fotoGaleri_${destId}">
         <span class="foto-btn-icon">🖼️</span>
         <span>Dari Galeri</span>
-      </button>
-      <button class="btn-foto-src btn-kamera" onclick="document.getElementById('fotoKamera_${destId}').click()">
+      </label>
+      <label class="btn-foto-src btn-kamera" for="fotoKamera_${destId}">
         <span class="foto-btn-icon">📷</span>
         <span>Buka Kamera</span>
-      </button>
+      </label>
     </div>
 
     <div class="foto-preview-grid" id="fotoPreview_${destId}"></div>
     <div class="foto-count" id="fotoCount_${destId}">0 / 6 foto</div>
   `;
   body.appendChild(fotoSection);
-
-  renderFotoPreview(destId);
+  setupFotoSection(destId);
 
   // ── TOMBOL PDF PER KUNJUNGAN ──
   const pdfKunjunganSection = document.createElement('div');
@@ -624,35 +627,85 @@ function simpanForm() {
 }
 
 // ==================== FOTO ====================
+function setupFotoSection(destId) {
+  const galeriInput = document.getElementById(`fotoGaleri_${destId}`);
+  const kameraInput = document.getElementById(`fotoKamera_${destId}`);
+  const grid = document.getElementById(`fotoPreview_${destId}`);
+
+  if (galeriInput) {
+    galeriInput.addEventListener('change', () => handleFotoUpload(galeriInput, destId));
+  }
+  if (kameraInput) {
+    kameraInput.addEventListener('change', () => handleFotoUpload(kameraInput, destId));
+  }
+  if (grid) {
+    grid.addEventListener('click', (e) => {
+      const btn = e.target.closest('.foto-remove');
+      if (!btn) return;
+      const idx = Number(btn.dataset.idx);
+      if (!Number.isNaN(idx)) hapusFoto(destId, idx);
+    });
+  }
+
+  renderFotoPreview(destId);
+}
+
+function isSupportedImageFile(file) {
+  if (!file) return false;
+  const type = (file.type || '').toLowerCase();
+  if (type.startsWith('image/') && !type.includes('heic') && !type.includes('heif')) return true;
+  return /\.(jpe?g|png|webp|gif)$/i.test(file.name || '');
+}
+
 function handleFotoUpload(input, destId) {
-  const files = Array.from(input.files);
+  const files = Array.from(input.files || []).filter(isSupportedImageFile);
+  if (!files.length) {
+    if (input.files && input.files.length > 0) {
+      showToast('⚠️ Format foto tidak didukung. Gunakan JPG atau PNG.');
+    }
+    input.value = '';
+    return;
+  }
+
   if (!state.photos[destId]) state.photos[destId] = [];
 
   const remaining = 6 - state.photos[destId].length;
-  if (remaining <= 0) { showToast('⚠️ Sudah maksimal 6 foto!'); input.value = ''; return; }
+  if (remaining <= 0) {
+    showToast('⚠️ Sudah maksimal 6 foto!');
+    input.value = '';
+    return;
+  }
 
   const toAdd = files.slice(0, remaining);
   if (files.length > remaining) showToast(`⚠️ Hanya ${remaining} foto lagi yang bisa ditambahkan`);
 
   let loaded = 0;
   let failed = 0;
+  const done = () => {
+    loaded++;
+    if (loaded < toAdd.length) return;
+    renderFotoPreview(destId);
+    saveState();
+    input.value = '';
+    if (failed > 0 && loaded - failed === 0) {
+      showToast('⚠️ Foto gagal diproses. Coba JPG/PNG dari galeri.');
+    } else if (failed > 0) {
+      showToast(`⚠️ ${failed} foto gagal, sisanya berhasil ditambahkan`);
+    } else {
+      showToast('✅ Foto berhasil ditambahkan!');
+    }
+  };
+
   toAdd.forEach(file => {
     compressImage(file, (compressed, w, h) => {
-      if (!compressed) {
-        failed++;
-      } else {
+      if (compressed) {
         state.photos[destId].push({ src: compressed, name: file.name, w, h });
+      } else {
+        failed++;
       }
-      loaded++;
-      if (loaded === toAdd.length) {
-        renderFotoPreview(destId);
-        saveState();
-        if (failed > 0) showToast(`⚠️ ${failed} foto gagal diproses`);
-        else if (loaded - failed > 0) showToast('✅ Foto berhasil ditambahkan!');
-      }
+      done();
     });
   });
-  input.value = '';
 }
 
 function compressImage(file, callback) {
@@ -660,27 +713,35 @@ function compressImage(file, callback) {
   reader.onload = (e) => {
     const img = new Image();
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const MAX = 1200;
-      let w = img.width, h = img.height;
-      if (w > MAX || h > MAX) {
-        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-        else { w = Math.round(w * MAX / h); h = MAX; }
+      try {
+        const natW = img.naturalWidth || img.width;
+        const natH = img.naturalHeight || img.height;
+        if (!natW || !natH) {
+          callback(null, 0, 0);
+          return;
+        }
+        const canvas = document.createElement('canvas');
+        const MAX = 1200;
+        let w = natW, h = natH;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { callback(null, 0, 0); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        callback(canvas.toDataURL('image/jpeg', 0.75), w, h);
+      } catch (err) {
+        console.error('compressImage error:', err);
+        callback(null, 0, 0);
       }
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      callback(canvas.toDataURL('image/jpeg', 0.75), w, h);
     };
-    img.onerror = () => {
-      showToast('⚠️ Gagal memuat foto. Coba file lain.');
-      callback(null, 0, 0);
-    };
+    img.onerror = () => callback(null, 0, 0);
     img.src = e.target.result;
   };
-  reader.onerror = () => {
-    showToast('⚠️ Gagal membaca file foto.');
-    callback(null, 0, 0);
-  };
+  reader.onerror = () => callback(null, 0, 0);
   reader.readAsDataURL(file);
 }
 
@@ -688,25 +749,44 @@ function renderFotoPreview(destId) {
   const grid = document.getElementById(`fotoPreview_${destId}`);
   const countEl = document.getElementById(`fotoCount_${destId}`);
   if (!grid) return;
-  const photos = state.photos[destId] || [];
-  grid.innerHTML = photos.map((p, i) => {
+
+  const photos = (state.photos[destId] || []).filter(p => {
+    const src = typeof p === 'string' ? p : p?.src;
+    return !!src;
+  });
+
+  grid.innerHTML = '';
+  photos.forEach((p, i) => {
     const src = typeof p === 'string' ? p : p.src;
-    if (!src) return '';
-    return `
-    <div class="foto-preview-item">
-      <img src="${src}" alt="Foto ${i+1}" loading="lazy" />
-      <button class="foto-remove" onclick="hapusFoto('${destId}', ${i})" title="Hapus foto">×</button>
-    </div>`;
-  }).filter(Boolean).join('');
+    const item = document.createElement('div');
+    item.className = 'foto-preview-item';
+
+    const img = document.createElement('img');
+    img.alt = `Foto ${i + 1}`;
+    img.loading = 'lazy';
+    img.src = src;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'foto-remove';
+    btn.dataset.idx = String(i);
+    btn.title = 'Hapus foto';
+    btn.textContent = '×';
+
+    item.appendChild(img);
+    item.appendChild(btn);
+    grid.appendChild(item);
+  });
+
   if (countEl) countEl.textContent = `${photos.length} / 6 foto`;
 }
 
 function hapusFoto(destId, idx) {
-  if (state.photos[destId]) {
-    state.photos[destId].splice(idx, 1);
-    renderFotoPreview(destId);
-    saveState();
-  }
+  if (!state.photos[destId]) return;
+  state.photos[destId].splice(idx, 1);
+  renderFotoPreview(destId);
+  saveState();
+  showToast('🗑️ Foto dihapus');
 }
 
 // ==================== PDF GENERATION ====================

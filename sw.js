@@ -3,7 +3,7 @@
    v2.1 – Auto Update + Cache Strategy
    ============================================ */
 
-const APP_VERSION = 'jes-v2.6';
+const APP_VERSION = 'jes-v2.7';
 const CACHE_STATIC = `${APP_VERSION}-static`;
 const CACHE_DYNAMIC = `${APP_VERSION}-dynamic`;
 
@@ -64,8 +64,12 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   if (url.origin !== location.origin && !url.href.includes('fonts.googleapis.com') && !url.href.includes('cdnjs.cloudflare.com')) return;
 
-  // Strategi: Network First untuk HTML (selalu ambil versi terbaru)
-  if (event.request.destination === 'document' || url.pathname.endsWith('.html')) {
+  // Strategi: Network First untuk HTML & app.js (selalu ambil versi terbaru)
+  if (
+    event.request.destination === 'document' ||
+    url.pathname.endsWith('.html') ||
+    url.pathname.endsWith('app.js')
+  ) {
     event.respondWith(networkFirstStrategy(event.request));
     return;
   }
