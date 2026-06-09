@@ -659,8 +659,8 @@ function hapusFoto(destId, idx) {
 // destId = null → laporan semua destinasi
 // destId = 'xxx' → laporan satu kunjungan saja
 // ╔══════════════════════════════════════════════════════════════════╗
-// ║   PDF ENGINE v3 – MAJALAH DUA KOLOM                            ║
-// ║   Layout: 2 kolom teks, foto tersebar di antara narasi         ║
+// ║   PDF ENGINE v5 – MAJALAH DUA KOLOM                            ║
+// ║   Teks mengalir 2 kolom, foto paralel tanpa sisipan di tengah  ║
 // ╚══════════════════════════════════════════════════════════════════╝
 
 async function generatePDF(destId) {
@@ -693,6 +693,7 @@ async function generatePDF(destId) {
     // ── STATE KOLOM ──
     let colY = [BODY_TOP, BODY_TOP];
     let activePage = doc.internal.getCurrentPageInfo().pageNumber;
+    let pageDest = null; // destinasi aktif (header halaman lanjutan)
 
     const syncCols = () => {
       const y = Math.max(colY[0], colY[1]);
@@ -705,7 +706,8 @@ async function generatePDF(destId) {
       doc.addPage();
       activePage = doc.internal.getCurrentPageInfo().pageNumber;
       colY = [BODY_TOP, BODY_TOP];
-      if (withHeader) drawDestHeader(withHeader);
+      const dest = withHeader || pageDest;
+      if (dest) drawDestHeader(dest);
       drawColumnRule();
       drawPageFooter();
     };
@@ -746,34 +748,8 @@ async function generatePDF(destId) {
       return col;
     };
 
-    const ensureBlockSpace = (needed) => {
-      if (syncCols() + needed > BODY_BOT) {
-        newPage();
-        syncCols();
-      }
-    };
-
-    // Teks lebar penuh — dipakai untuk jawaban agar tidak overlap antar kolom
-    const writeBlockText = (text, fontSize, color, fontStyle, gapAfter = 3) => {
-      if (!text) return;
-      const lineH = fontSize < 9 ? LINE_H_SM : LINE_H_MD;
-      const lines = doc.splitTextToSize(text, FULL_W - 4);
-      doc.setFontSize(fontSize);
-      doc.setTextColor(...color);
-      doc.setFont('helvetica', fontStyle || 'normal');
-      for (const line of lines) {
-        ensureBlockSpace(lineH + 1);
-        const y = syncCols();
-        doc.text(line, MARGIN + 2, y);
-        colY[0] = y + lineH;
-        colY[1] = y + lineH;
-      }
-      syncCols();
-      colY[0] += gapAfter;
-      colY[1] += gapAfter;
-    };
-
     const writeText = (text, col, fontSize, color, fontStyle, maxW) => {
+      if (!text) return col;
       doc.setFontSize(fontSize);
       doc.setTextColor(...color);
       doc.setFont('helvetica', fontStyle || 'normal');
@@ -860,26 +836,38 @@ async function generatePDF(destId) {
       return col;
     };
 
-    // Label pertanyaan lebar penuh (wrap, tanpa emoji)
-    const drawSectionLabel = (text, qi) => {
+    // Label pertanyaan dalam satu kolom (wrap, tanpa emoji)
+    const drawSectionLabel = (text, col, qi) => {
       const labelText = pdfSafeText(text).toUpperCase();
       const prefix = `PERTANYAAN ${qi + 1}`;
       doc.setFontSize(7);
       doc.setFont('helvetica', 'bold');
-      const lines = doc.splitTextToSize(labelText, FULL_W - 10);
+      const lines = doc.splitTextToSize(labelText, COL_W - 8);
       const boxH = 7 + lines.length * 4.5;
-      ensureBlockSpace(boxH + 3);
-      const x = MARGIN;
-      const y = syncCols();
+      col = ensureSpace(boxH + 3, col);
+      const x = colX(col);
+      const y = colY[col];
       doc.setFillColor(15, 69, 38);
-      doc.roundedRect(x, y, FULL_W, boxH, 1.5, 1.5, 'F');
+      doc.roundedRect(x, y, COL_W, boxH, 1.5, 1.5, 'F');
       doc.setTextColor(240, 208, 96);
       doc.text(prefix, x + 3, y + 4.8);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(6.8);
       doc.text(lines, x + 3, y + 9);
-      colY[0] = y + boxH + 3;
-      colY[1] = y + boxH + 3;
+      colY[col] = y + boxH + 2.5;
+      return col;
+    };
+
+    // Foto di kolom berlawanan — hanya jika kolom itu belum dipakai teks jawaban
+    const insertParallelPhoto = (src, textCol, size) => {
+      const other = 1 - textCol;
+      const ratio = 0.68;
+      const imgH = size === 'half' ? COL_W * 0.62 * ratio : COL_W * ratio;
+      const needed = imgH + 5;
+      if (colY[other] + needed > BODY_BOT) return;
+      // Foto paralel: letakkan di kolom lain pada ketinggian yang sedang aktif
+      if (colY[other] < colY[textCol]) colY[other] = colY[textCol];
+      insertPhoto(src, other, null, size);
     };
 
     const drawDestHeader = (d) => {
@@ -1020,20 +1008,20 @@ async function generatePDF(destId) {
     };
 
     // ══════════════════════════════════════════════
-    //   RENDER SATU DESTINASI – Layout v4
-    //   Intro 2 kolom, pertanyaan & jawaban lebar penuh
+    //   RENDER SATU DESTINASI – Majalah 2 Kolom
     // ══════════════════════════════════════════════
     const renderDestMagazine = async (d) => {
       const data = state.formData[d.id];
       if (!data || !Object.keys(data).some(k => data[k])) return;
       const photos = state.photos[d.id] || [];
 
+      pageDest = d;
       doc.addPage();
       colY = [BODY_TOP, BODY_TOP];
       drawDestHeader(d);
       drawColumnRule();
 
-      // Intro: deskripsi (kiri) + foto utama (kanan) — paralel dari atas
+      // Pembuka majalah: narasi kiri, foto kanan — paralel dari atas
       colY[0] = BODY_TOP;
       colY[1] = BODY_TOP;
       writeText(pdfSafeText(d.deskripsi), 0, 9, [70, 100, 70], 'italic');
@@ -1044,34 +1032,24 @@ async function generatePDF(destId) {
         insertPhoto(photos[0].src, 1, `Foto kunjungan ${pdfSafeText(d.nama)}`, 'full');
       }
 
-      syncCols();
-      colY[0] += 4;
-      colY[1] += 4;
-
-      // Pertanyaan & jawaban — lebar penuh, tanpa sisipan foto di tengah teks
+      // Pertanyaan & jawaban — alur 2 kolom, foto paralel (bukan di tengah paragraf)
       d.pertanyaan.forEach((q, qi) => {
         const answer = data[q.id];
         if (!answer) return;
 
-        syncCols();
-        drawSectionLabel(q.label, qi);
-        writeBlockText(pdfSafeText(answer), 10, [25, 40, 25], 'normal', 5);
+        let col = shortCol();
+        col = drawSectionLabel(q.label, col, qi);
 
-        // Foto antar pertanyaan (setelah jawaban selesai, bukan di tengah paragraf)
         const photoIdx = qi + 1;
         if (photoIdx < photos.length && qi < 2) {
-          syncCols();
-          const photoCol = shortCol();
-          const size = qi === 0 ? 'full' : 'half';
-          const needed = (size === 'full' ? COL_W * 0.68 : COL_W * 0.42) + 6;
-          if (syncCols() + needed <= BODY_BOT) {
-            insertPhoto(photos[photoIdx].src, photoCol, null, size);
-            syncCols();
-          }
+          insertParallelPhoto(photos[photoIdx].src, col, qi === 0 ? 'full' : 'half');
         }
+
+        col = writeText(pdfSafeText(answer), col, 10, [25, 40, 25], 'normal');
+        colY[col] += 4;
       });
 
-      // Foto dokumentasi lebar penuh di akhir
+      // Foto melintang 2 kolom — samakan dulu ketinggian kolom
       if (photos.length >= 3) {
         syncCols();
         const wideH = FULL_W * 0.45 + 8;
@@ -1080,11 +1058,10 @@ async function generatePDF(destId) {
         }
       }
 
-      // Sisa foto — grid 2 kolom
+      // Sisa foto — grid 2 kolom bergantian
       if (photos.length > 3) {
         photos.slice(3).forEach((p, ei) => {
-          syncCols();
-          const col = ei % 2 === 0 ? 0 : 1;
+          const col = shortCol();
           if (colY[col] + COL_W * 0.55 <= BODY_BOT) {
             insertPhoto(p.src, col, null, 'half');
           }
