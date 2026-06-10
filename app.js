@@ -1238,7 +1238,7 @@ async function generatePDF(destId) {
 // Cara membuat: buka forms.google.com → buat form baru dengan field:
 //   Nama Siswa, Kelas, No. Absen, Upload PDF
 // Lalu copy link form-nya ke sini:
-const GOOGLE_FORM_URL = 'https://forms.google.com/1ula5kDuDSpddbHLfkg5lZ7e-U6E1EPNh2wOiBZSLkIY';
+const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSeyvLfN5B8P98bXtGexrj32NvPafMj2TTk22pXjhi6onrvY3Q/viewform?usp=header';
 // ─────────────────────────────────────────────────────────────────────────────
 
 function bukaGdriveModal() {
